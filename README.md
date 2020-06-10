@@ -899,7 +899,86 @@
     ]
 
     ```
-        
+
+* Forms
+    [Form Fields](https://docs.djangoproject.com/en/3.0/ref/forms/fields/#module-django.forms.fields)
+    ```python
+    # users/views.py
+
+    from users.form import ProfileForm
+
+    def update_profile(request):
+
+        profile = request.user.profile
+
+        if request.method == 'POST':
+            form = ProfileForm(request.POST, request.FILES)
+            if form.is_valid():
+                data = form.cleaned_data
+
+                profile.website = data['website']
+                profile.phone_number = data['phone_number']
+                profile.biography = data['biography']
+                profile.picture = data['picture']
+                profile.save()
+            
+                return redirect('update_profile')
+
+        else:
+            form = ProfileForm()
+    
+        return render(
+            request=request,
+            template_name='users/update_profile.html',
+            context={
+                'profile': profile,
+                'user': request.user,
+                'form': form
+            }
+        )    
+    ```
+
+    Creamos archivo ```users/forms.py```
+    ```python
+    # users/forms.py
+    from django import forms
+
+    class ProfileForm(forms.Form):
+    
+        website = forms.URLField(max_length=200, required=True)
+        biography = forms.CharField(max_length=500, required=False)
+        phone_number = forms.CharField(max_length=20, required=False)
+        picture = forms.ImageField()
+
+    ```
+
+    Para enviar archivos en formularios:
+    ```html
+    <form action="{% url 'update_profile' %}" method="POST" enctype="multipart/form-data">
+    ```
+
+    Corregir errores en templates
+    [Working with form templates](https://docs.djangoproject.com/en/3.0/topics/forms/#working-with-form-templates)
+
+    ```html
+    <!-- update_profile.html -->
+    {# Website field #}
+    <div class="form-group">
+        <label>Website</label>
+        <input
+            class="form-control {% if form.website.errors %}is-invalid{% endif %}"
+            type="text"
+            name="website"
+            placeholder="Website"
+            value="{% if form.errors %}{{ form.website.value }}{% else %}{{ profile.website }}{% endif %}"
+        />
+        <div class="invalid-feedback">
+            {% for error in form.website.errors %}
+                {{ error }}
+            {% endfor %}
+        </div>
+    </div>    
+    ```
 
 
 
