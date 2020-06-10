@@ -392,4 +392,515 @@
         ]
 
         ```
+* Extender el modelo de Usuario (Relacionar Usuario con otra tabla)
+[Documentación](https://docs.djangoproject.com/en/3.0/topics/auth/customizing/#extending-the-existing-user-model)
+
+
+    * Crear nueva aplicación
+
+        ```shell
+        python3 manage.py startapp users
+        ```
+
+        ```python
+        # users/apps.py
+
+        class UsersConfig(AppConfig):
+            name = 'users'
+            verbose_name = 'Users'
+        ```
+
+        [Django Field Reference](https://docs.djangoproject.com/en/3.0/ref/models/fields/#onetoonefield)
+
+        ```python
+        # users/models.py
+        from django.contrib.auth.models import User
+
+        class Profile(models.Model):
+            user = models.OneToOneField(User, on_delete=models.CASCADE)
+    
+            website = models.URLField(max_length=200, blank=True)
+            biography = models.TextField(blank=True)
+            phone_number = models.CharField(max_length=20, blank=True)
+    
+            picture = models.ImageField(upload_to='users/pictures', blank=True, null=True)
+    
+            created = models.DateTimeField(auto_now_add=True)
+            modified = models.DateTimeField(auto_now=True)
+    
+            def __str__(self):
+                return self.user.username
+        ```
+        ```python
+        # settings.py
+
+
+        INSTALLED_APPS = [
+            # DJango apps
+            ...
+            'users',
+        ]
+        ```
+
+        ```bash
+
+        # Si vas a guardar imagenes o archivos
+        pip3 install pillow
+
+        python3 manage.py makemigrations
+        python3 manage.py migrate
+        ```
+
+        ```bash
+        # Creamos super usuario
+
+        python3 manage.py createsuperuser
+
+        Username (leave blank to use 'mrbizarro'): nildiert
+        Email address: n@gmail.com
+        Password: 
+        Password (again): 
+
+        Superuser created successfully.
+        ```
+
+        Vamos a la url
+
+        ```shell
+        http://127.0.0.1:8000/admin/
+        ```
+
+    * Registrar el modelo
+
+        ```python
+        # users/admin.py
+
+        from django.contrib import admin
+        from users.models import Profile
+
+        admin.site.register(Profile)
+        ```
+        ... Ahora puedo ir a esta url
+        
+        ```shell
+        http://127.0.0.1:8000/admin/users/profile/
+        ```
+
+        También se puede registrar el modelo con decoradores:
+
+        ```python
+        from django.contrib import admin
+        from users.models import Profile
+
+        @admin.register(Profile)
+        class ProfileAdmin(admin.ModelAdmin):
+
+            # Esta linea muestra estos elementos en /admin
+            list_display = ('user', 'phone_number', 'website', 'picture')
+
+            # Convierte en links a /detail cada elemento
+            list_display_links = ('pk', 'user',)
+
+            # Crea un input editable para cada valor
+            list_editable = ('phone_number', 'website', 'picture')
+
+            search_fields = (
+                'user__email',
+                'user__username',
+                'user__first_name', 
+                'user__last_name',
+                'phone_number'
+            )
+
+            # Añade filtros a la derecha
+            list_filter = (
+                'created', 
+                'modified',
+                'user__is_active',
+                'user__is_staff'
+            )
+            
+            # Agrupa los campos del formulario
+
+    
+            fieldsets = (
+                # Primer elemento es la categoria
+                ('Profile', {
+                    'fields': (
+                        ('user', 'picture'),),
+
+                }),
+                ('Extra info', {
+                    'fields': (
+                        ('website', 'phone_number'),
+                        ('biography',)
+                    )
+                }),
+                ('Metadata', {
+                    'fields': (
+                        ('created', 'modified')
+                    )
+                })
+            )   
+            
+            readonly_fields = ('created', 'modified')         
+
+        ```
+        [Fieldsets documentación](https://docs.djangoproject.com/en/3.0/ref/contrib/admin/#django.contrib.admin.ModelAdmin.fieldsets)
+
+        ```
+        # Para este error, 
+        FieldError at /admin/users/profile/2/change/
+        'created' cannot be specified for Profile model form as it is a non-editable field. Check fields/fieldsets/exclude attributes of class ProfileAdmin.
+
+
+        readonly_fields = ('created', 'modified')
+        ```
+    * Agregar el Profile al admin
+
+        [StackedInline](https://docs.djangoproject.com/en/3.0/ref/contrib/admin/#django.contrib.admin.StackedInline)
+
+        ```python
+        # admin.py
+
+        from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+        from django.contrib.auth.models import User
+
+        class ProfileInline(admin.StackedInline):
+    
+            model = Profile
+            can_delete = False
+            verbose_name = 'profiles'
+    
+        class UserAdmin(BaseUserAdmin):
+            inlines = (ProfileInline,)
+
+            # Listamos los campos que se van a ver
+            list_display = (
+               'username',
+               'email',
+               'first_name',
+               'last_name',
+               'is_active',
+               'is_staff'
+            )
+    
+        admin.site.unregister(User)
+        admin.site.register(User, UserAdmin)
+        ```
+* Relaciones
+
+    **[Relationship fields](https://docs.djangoproject.com/en/3.0/ref/models/fields/#module-django.db.models.fields.related)**
+
+    * Crear modelo ```Posts```
+
+
+        ```python
+
+        from django.db import models
+        from django.contrib.auth.models import User
+
+        class Post(models.Model):
+    
+            user = models.ForeignKey(User, on_delete=models.CASCADE)
+    
+            profile = models.ForeignKey('users.Profile', on_delete=models.CASCADE)
+
+            ...
+        ```
+
+        ```shell
+        python3 manage.py makemigrations 
+        python3 manage.py migrate
+        ```
+    * Visualizar imagenes
+
+        [MEDIA_ROOT](https://docs.djangoproject.com/en/3.0/ref/settings/#std:setting-MEDIA_ROOT)
+
+        ```python
+        # urls.py
+        from django.conf.urls.static import static
+        from django.conf import settings
+
+        urlpatterns = [
+            ...
+        ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)        
+
+        ```
+
+        ```python
+
+        # settings.py
+        
+        ...
+        MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+        MEDIA_URL = '/media/'
+        ```
+
+* Crear templates
+    ```python
+    # settings.py
+    TEMPLATES = [
+        {'DIRS': [os.path.join(BASE_DIR, 'templates')]}
+    ]
+    ```
+
+    En el directorio base creo la carpeta ```templates``` y dentro los templates de cada aplicación
+
+    * Agregamos carpeta ```static``` en la raiz y configuramos en ```settings.py```
+
+    [STATICFILES_FINDERS](https://docs.djangoproject.com/en/3.0/ref/settings/#staticfiles-finders)
+
+    ```python
+    STATICFILES_DIRS = (os.path.join(BASE_DIR, 'static'),)
+    STATICFILES_FINDERS = [
+        'django.contrib.staticfiles.finders.FileSystemFinder',
+        'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+    ]
+    ```
+* Sistema de autenticación
+    ### login
+    [Authentication in Web requests](https://docs.djangoproject.com/en/3.0/topics/auth/default/#authentication-in-web-requests)
+   
+
+    ```python
+    # urls.py
+
+    from users import views as users_views
+    urlpatterns = [
+    ...
+    path('users/login/', users_views.login_view, name='login'),
+    ] 
+    ```
+
+    ```python
+    # users/views.py
+    from django.contrib.auth import authenticate, login
+    from django.shortcuts import render, redirect
+
+    def login_view(request):
+        if request.method == 'POST':
+            username = request.POST['username']
+            password = request.POST['password']
+        
+            user = authenticate(request, username=username, password=password)
+            if user:
+                login(request, user)
+                return redirect('feed')
+            else:
+                return render(request, 'users/login.html', {'error': 'Invalid username and password'})
+        return render(request, 'users/login.html')
+    ```
+
+    ```html
+    <!-- users/login.html -->
+
+    {% extends "users/base.html" %}
+
+
+        {% block head_content %}
+        <title>Platzigram sign in</title>
+        {% endblock %}
+
+        {% block container %}
+            {% if error %}
+                <p style="color: red">{{ error }}</p>
+            {% endif %}
+            <form method="POST" action="{% url "login" %}">
+                {% csrf_token %}
+                <input type="text" placeholder="Username" name="username">
+                <input type="password" placeholder="Password" name="password">
+                <button type="submit">Sign in</button>
+            </form>
+        {% endblock %}
+    ```
+* Redirigir si no esta logueado
+     [The login_required decorator](https://docs.djangoproject.com/en/3.0/topics/auth/default/#the-login-required-decorator)
+     ```python
+     # settings.py
+     ...
+     LOGIN_URL = '/users/login/'
+     ```
+
+     ```python
+     # posts/views.py
+     from django.contrib.auth.decorators import login_required
+
+    @login_required
+    def list_posts(request):
+        ...
+
+     ```
+    ### logout
+
+    [How to log a user out](https://docs.djangoproject.com/en/3.0/topics/auth/default/#how-to-log-a-user-out)
+    ```python
+    # urls.py
+    path('users/logout/', users_views.logout_view, name='logout'),
+    ```
+
+    ```python
+    # users/views.py
+    from django.contrib.auth import authenticate, login, logout
+    from django.contrib.auth.decorators import login_required
+    ...
+    @login_required
+    def logout_view(request):
+        logout(request)
+        return redirect('login')
+    ```
+    ```html
+    <!-- templates/nav.html -->
+    <li class="nav-item nav-icon">
+        <a href="{% url "logout" %}">
+        <i class="fas fa-sign-out-alt"></i>
+        </a>
+    </li>
+    ```
+    ### signup
+    [Creating users](https://docs.djangoproject.com/en/3.0/topics/auth/default/#creating-users)
+
+    ```python
+    # urls.py
+    path('users/signup/', users_views.signup, name='signup'),
+    ```
+
+    ```python
+    # users/views.py
+    from django.contrib.auth.models import User
+    from users.models import Profile
+    ```
+
+    ```python
+    # users/views.py
+    from django.db.utils import IntegrityError
+    from django.contrib.auth.models import User
+    from users.models import Profile
+
+    def signup(request):
+
+        if request.method == 'POST':
+            username = request.POST['username']
+            passwd = request.POST['passwd']
+            passwd_confirmation = request.POST['passwd_confirmation']
+        
+            if passwd != passwd_confirmation:
+                return render(request, 'users/signup.html', {'error': 'Password confirmation does not match'})
+        
+            try:
+                user = User.objects.create_user(username=username, password=passwd)
+            except IntegrityError:
+                return render(request, 'users/signup.html', {'error': 'Username is already in use'})
+            user.first_name = request.POST['first_name']
+            user.last_name = request.POST['last_name']
+            user.email = request.POST['email']
+            user.save()
+        
+            profile = Profile(user=user)
+            profile.save()
+        
+            return redirect('login')
+        
+        return render(request, 'users/signup.html')    
+
+    ```
+    ```html
+    {% extends "users/base.html" %}
+
+
+    {% block head_content %}
+        <title>Platzigram sign up</title>
+    {% endblock %}
+
+    {% block container %}
+
+        {% if error %}
+            <p class="alert alert-danger">
+            {{ error }}
+            </p>
+        {% endif %}
+
+        <form action="{% url 'signup' %}" method="POST">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <input type="text" class="form-control" placeholder="Username" name="username" required="true">
+            </div>
+
+            <div class="form-group">
+                <input type="password" class="form-control" placeholder="Password" name="passwd" required="true">
+            </div>
+
+            <div class="form-group">
+                <input type="password" class="form-control" placeholder="Password confirmation" name="passwd_confirmation" required="true">
+            </div>
+
+            <div class="form-group">
+                <input type="text" class="form-control" placeholder="First name" name="first_name" required="true">
+            </div>
+
+            <div class="form-group">
+                <input type="text" class="form-control" placeholder="Last name" name="last_name" required="true">
+            </div>
+
+            <div class="form-group">
+                <input type="text" class="form-control" placeholder="Email address" name="email" required="true">
+            </div>        
+
+            <button class="btn btn-primary btn-block mt-5">Register</button>
+        </form>
+    {% endblock %}    
+    ```
+* Middleware
+
+    [Documentación](https://docs.djangoproject.com/en/3.0/topics/http/middleware/#middleware)
+
+    ```python
+    # urls.py
+    path('users/me/profile/', users_views.update_profile, name='update_profile'),
+    ```
+    ```python
+    # users/views.py
+    def update_profile(request):
+        return render(request, 'users/update_profile.html')
+    ```
+
+    ```html
+    # templates/users/update_profile.html
+    df 
+    ssdf
+    ```
+
+    ```python
+    # platzigram/middleware.py
+
+    from django.shortcuts import redirect
+
+    class ProfileCompletionMiddleware:
+    
+    def __init__(self, get_response):
+        self.get_response = get_response
+        
+    def __call_(self, request):
+        if not request.user.is_anonymous:
+            profile = request.user.profile
+            if not profile.picture or not profile.biography:
+                return redirect('update_profile')
+            
+        response = self.get_response(request)
+        return response    
+    ```
+
+    ```python
+    # platzigram/settings.py
+    MIDDLEWARE = [
+        ...
+        'platzigram.middleware.ProfileCompletionMiddleware'
+    ]
+
+    ```
+        
+
+
+
 
