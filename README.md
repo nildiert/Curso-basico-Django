@@ -980,6 +980,210 @@
     </div>    
     ```
 
+* ### Model Forms
+
+    ```python
+    # urls.py
+    path('posts/new/', posts_views.create_post, name='create_post'),
+    ```
+
+    ```python
+    # posts/views.py
+    from posts.forms import PostForm
+    from django.shortcuts import render, redirect
+
+    @login_required
+    def create_post(request):
+        if request.method == 'POST':
+            form = PostForm(request.POST, request.FILES)
+            if form.is_valid():
+                form.save()
+                return redirect('feed')
+        else:
+            form = PostForm()
+
+        return render(
+            request=request,
+            template_name='posts/new.html',
+            context={
+                'form': form,
+		    	'user': request.user,
+			    'profile': request.user.profile
+            }
+        )
+
+    ```
+    Creamos el archivo ```posts/forms.py```
+
+    ```python
+    from django import forms
+    from posts.models import Post
+
+    class PostForm(forms.ModelForm):
+    
+        class Meta:        
+            model = Post
+            fields = ('user', 'profile', 'title', 'photo')    
+    ```
+
+    **Ver ```templates/posts/new.html```**
+
+* Crear posts dinamico    
+    ```python
+    # posts/views.py
+
+
+    from posts.models import Post
+
+
+    @login_required
+    def list_posts(request):
+        posts = Post.objects.all().order_by('-created')
+        return render(request, 'posts/feed.html', {'posts': posts})
+    ```
+
+    ```html
+    # templates/posts/feed.html
+    {% extends "base.html" %}
+
+    {% block head_content %}
+        <title>Platzigram</title>
+    {% endblock%}
+
+    {% block container %}
+        <div class="container">
+            <div class="row">
+
+                {% for post in posts %}
+                <div class="col-sm-12 col-md-8 offset-md-2 mt-5 p-0 post-container">
+                    <div class="media pt-3 pl-3 pb-1">
+                        <img class="mr-3 rounded-circle" height="35" src="{{ post.profile.picture.url }}" alt="{{ post.user.get_full_name }}">
+                        <div class="media-body">
+                            <p style="margin-top: 5px;">{{ post.user.get_full_name  }}</p>
+                        </div>
+                    </div>
+
+                    <img style="width: 100%;" src="{{ post.photo.url }}" alt="{{ post.title }}">
+
+                    <p class="mt-1 ml-2" >
+                        <a href="" style="color: #000; font-size: 20px;">
+                            <i class="far fa-heart"></i>
+                        </a> 30 likes
+                    </p>
+                    <p class="ml-2 mt-0 mb-2">
+                        <b>{{ post.title }}</b> - <small>{{ post.created }}</small>
+                    </p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endblock %}
+
+    ```
+
+* Validación de formularios
+    [Widgets](https://docs.djangoproject.com/en/3.0/ref/forms/widgets/)
+    [Form and field validation](https://docs.djangoproject.com/en/3.0/ref/forms/validation/#form-and-field-validation)
+    ```python
+    # users/forms.py
+    from django.contrib.auth.models import User
+
+    class SignUpForm(forms.Form):
+        username = forms.CharField(min_length=4, max_length=50)
+        password = forms.CharField(
+            max_length=70,
+            widget=forms.PasswordInput()
+        )
+        password_confirmation = forms.CharField(
+            max_length=70,
+            widget=forms.PasswordInput()
+        )
+
+        first_name = forms.CharField(min_length=2, max_length=50)
+        last_name = forms.CharField(min_length=2, max_length=50)
+
+        email = forms.CharField(
+            min_length=6,
+            max_length=70,
+            widget=forms.EmailInput()
+        )
+    
+        def clean_username(self):
+            username = self.cleaned_data['username']
+            username_taken = User.object.filter(username=username).exists()
+            if username_taken:
+                raise forms.ValidationError('Username is already in use.')
+            return username
+        
+        def clean(self):
+            data = super().clean()
+        
+            password = data['password']
+            password_confirmation = data['password_confirmation']
+        
+            if password != password_confirmation:
+                raise forms.ValidationError('Passwords do not match.')
+        
+        def save(self):
+            data = self.cleaned_data
+            data.pop('password_confirmation')
+        
+            user = User.objects.create(**data)
+            profile = Profile(user=user)
+            profile.save()                
+    ```
+
+    ```python
+    # users/views.py
+    from users.forms import ProfileForm, SignUpForm
+
+
+    def signup(request):
+
+        if request.method == 'POST':
+            form = SignUpForm(request.POST)
+            if form.is_valid():
+                form.save()
+                return redirect('login')
+        else:
+            form = SignUpForm()
+
+        return render(
+            request=request,
+            template_name='users/signup.html',
+            context={'form': form}
+        )
+
+    ```
+    ```html
+    # templates/users/signup.html
+
+    {% extends "users/base.html" %}
+
+
+    {% block head_content %}
+        <title>Platzigram sign up</title>
+    {% endblock %}
+
+    {% block container %}
+
+        {% if error %}
+            <p class="alert alert-danger">
+            {{ error }}
+            </p>
+        {% endif %}
+
+        <form action="{% url 'signup' %}" method="POST">
+            {% csrf_token %}
+
+            {{ form.as_p }}
+
+            <button class="btn btn-primary btn-block mt-5">Register</button>
+        </form>
+    {% endblock %}    
+
+    ```
+
 
 
 
